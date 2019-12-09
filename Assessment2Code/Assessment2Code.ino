@@ -1,3 +1,6 @@
+
+
+
 /*
        @@@@@@@@@@@&*           %@@@@@%       @@@@@@@@@    @@@@@@@@@  @@@@@@@@
        @@@@@@@@@@@@@@@     #@@@@@@@@@@@@    @@@@@@@@@@   @@@@@@@@@* @@@@@@@@@
@@ -84,9 +87,9 @@ u8 USB_SendSpace(u8 ep);
 #define BUTTON_B       30   // Push button labelled B on board.
 
 // Behaviour parameters
-#define LINE_THRESHOLD        450.00
-#define STRAIGHT_FWD_SPEED    5.0
-#define LINE_FOLLOW_SPEED     4.0
+#define LINE_THRESHOLD        200.00
+#define STRAIGHT_FWD_SPEED    10.0
+#define LINE_FOLLOW_SPEED     8.0
 #define IR_DETECTD_THRESHOLD  80   // a close reading in mm (danger)
 #define IR_AVOIDED_THRESHOLD  140   // a distant reading in mm (safe)
 
@@ -97,7 +100,7 @@ u8 USB_SendSpace(u8 ep);
 #define SPD_DGAIN     -1.5
 
 // PID controller gains for heading feedback
-#define H_PGAIN   1.8
+#define H_PGAIN   3.0
 #define H_IGAIN   0.0001
 #define H_DGAIN   0.0
 
@@ -108,8 +111,8 @@ u8 USB_SendSpace(u8 ep);
 *****************************************************************************/
 
 LineSensor  LineSensor( L_SENSE_L, L_SENSE_C, L_SENSE_R );  // Class to handle all 3 line sensors.
-Motor       L_Motor( M0_PWM, M0_DIR);                       // To set left motor power.
-Motor       R_Motor( M1_PWM, M1_DIR);                       // To set right motor power.
+Motor       L_Motor( M0_PWM, M0_DIR );                       // To set left motor power.
+Motor       R_Motor( M1_PWM, M1_DIR );                       // To set right motor power.
 PID         L_PID( SPD_PGAIN, SPD_IGAIN, SPD_DGAIN );       // Speed control, left.
 PID         R_PID( SPD_PGAIN, SPD_IGAIN, SPD_DGAIN );       // Speed control, right.
 PID         H_PID( H_PGAIN, H_IGAIN, H_DGAIN );             // Position control, angle.
@@ -127,6 +130,9 @@ Mapper      Map;                                            // Default: 25x25 gr
 unsigned long update_t;   // Used for timing/flow control for main loop()
 unsigned long behaviour_t;// Use to track how long a behaviour has run.
 
+bool angle_setup;
+float demand_angle;
+
 // used by timer3.h to calculate left and right wheel speed.
 volatile float l_speed_t3, r_speed_t3;
 
@@ -141,6 +147,7 @@ int STATE;
 #define STATE_TURN_TO_ZERO    5     // Turns so the robot faces theta = 0
 #define STATE_TURN_TO_PIOVER2 6     // Turns so the robot faces theta = PI/2 (90*)
 #define STATE_AVOID_OBSTACLE  7
+#define STATE_CHANGE_ANGLE    8
 
 
 
@@ -153,7 +160,7 @@ void setup() {
 
   // Misc pin setup not handled by classes.
   pinMode( BUZZER_PIN, OUTPUT );
-  pinMode(DEBUG_LED, OUTPUT );
+  pinMode( DEBUG_LED, OUTPUT );
 
   // Push buttons.  Note that, by doing a
   // digital write, the button has a default
@@ -177,7 +184,9 @@ void setup() {
   // See mapping.h for MAP_X/Y definitions.
   RomiPose.setPose( MAP_X / 2, MAP_Y / 2, 0 );
 
-
+  angle_setup = false;
+  demand_angle = 0;
+  
   // Start up the serial port.
   Serial.begin(9600);
 
@@ -220,6 +229,12 @@ void loop() {
   if (  millis() - update_t > 50 ) {
     update_t = millis();
 
+    //Serial.print( STATE );
+    //Serial.print( ", " );
+    Serial.print( demand_angle );
+    Serial.print( ", " );
+    Serial.println( RomiPose.theta );
+
     // We check for a line, and if we find one
     // we immediately change state to line following.
     if ( LineSensor.onLine( LINE_THRESHOLD ) ) {
@@ -229,7 +244,7 @@ void loop() {
 
       // Set next state to line following, caught
       // by switch below
-      changeState( STATE_FOLLOW_LINE );
+      //changeState( STATE_FOLLOW_LINE );
 
     }
 
@@ -256,6 +271,7 @@ void loop() {
     } else {
       digitalWrite(DEBUG_LED, LOW);
     }
+
 
     // Note that, STATE is set at the transition (exit)
     // out of any of the below STATE_ functions, with the 
@@ -297,6 +313,10 @@ void loop() {
         avoidObstacle();
         break;
 
+      case STATE_CHANGE_ANGLE:
+        changeAngle();
+        break;
+
       default: // unknown, this would be an error.
         reportUnknownState();
         break;
@@ -308,6 +328,98 @@ void loop() {
   delay(1);
 
 }// End of Loop()
+
+
+
+void driveStraight() {
+
+  if ( !angle_setup ) {
+    demand_angle = RomiPose.theta;
+    angle_setup = true;
+  }
+
+  // If we have been doing this for more than 3 seconds,
+  // we transition out of this behaviour.
+  // Note that, behaviour_t is reset by the changeState
+  // function, called by every state when transitioning.
+  unsigned long elapsed_t = (millis() - behaviour_t );
+  if (  elapsed_t > 500 ) {   
+
+    // This ensures that the PID are reset
+    // and sets the new STATE flag.
+    if ( RomiPose.x <= 0 || RomiPose.y <= 0 || RomiPose.x >= MAP_X || RomiPose.y >= MAP_Y ) {
+      changeState( STATE_CHANGE_ANGLE );
+    }
+
+  } else { // Otherwise, drive straight.
+
+    // We want to keep the difference in the Romi theta
+    // between time steps to 0.
+    float delta_theta = RomiPose.theta - demand_angle;
+
+
+    // Demand 0, change in theta is measurement.
+    float bearing = H_PID.update( 0, delta_theta );
+
+    // Foward speed.
+    float fwd_bias = STRAIGHT_FWD_SPEED;
+
+    // PID speed control.
+    float l_pwr = L_PID.update( (fwd_bias - bearing), l_speed_t3 );
+    float r_pwr = R_PID.update( (fwd_bias + bearing), r_speed_t3 );
+
+    // Write power to motors.
+    L_Motor.setPower(l_pwr);
+    R_Motor.setPower(r_pwr);
+
+  }
+}
+
+
+
+void changeAngle() {
+
+  if ( !angle_setup ) {
+    demand_angle = RomiPose.theta - PI;
+    angle_setup = true;
+  }
+
+  // https://stackoverflow.com/questions/1878907/the-smallest-difference-between-2-angles
+  // Some crazy atan2 magic.
+  // Treats the difference in angle as cartesian x,y components.
+  // Cos and Sin are effectively wrapping the values between -1, +1, with a 90 degree phase.
+  // So we can pass in values larger/smaller than 0:TWO_PI fine.
+  // atan2 returns -PI/+PI, giving us an indication of direction to turn.
+  // Between -PI/+PI also means we avoid an extreme demand sent to the heading PID.
+  float diff = atan2( sin( ( demand_angle - RomiPose.theta) ), cos( (demand_angle - RomiPose.theta) ) );
+
+  // If we have got the Romi theta to roughly match
+  // the demand (by getting the difference to 0(ish)
+  // We transition out of this behaviour.
+  if ( abs( diff ) < 0.03 ) {
+
+    // This ensures that the PID are reset
+    // and sets the new STATE flag.
+    changeState( STATE_INITIAL  );
+
+  } else {    // else, turning behaviour
+
+    // Measurement is the different in angle, demand is 0
+    // bearing steers us to minimise difference toward 0
+    float bearing = H_PID.update( 0, diff );
+
+    // Append to motor speed control
+    float l_pwr = L_PID.update( (0 - bearing), l_speed_t3 );
+    float r_pwr = R_PID.update( (0 + bearing), r_speed_t3 );
+
+    // Set motor power.
+    L_Motor.setPower(l_pwr);
+    R_Motor.setPower(r_pwr);
+
+  } // end of abs(diff)<0.03 if()
+
+}// end of behaviour
+
 
 
 
@@ -368,7 +480,7 @@ void decideStartUpFromButtons() {
 // Note, this blocks the flow/timing
 // of your code.  Use sparingly.
 void beep() {
-  analogWrite(6, 80);
+  analogWrite(6, 1);
   delay(50);
   analogWrite(6, 0);
   delay(50);
@@ -401,13 +513,14 @@ void changeState( int which ) {
   // return with no action.
   if ( which == STATE ) return;
 
-
   // Stop motors.
   L_Motor.setPower( 0 );
   R_Motor.setPower( 0 );
 
+  angle_setup = false;
+
   // A short beep if debugging
-  //beep();
+  beep();
 
   // Reset the timestamp to track how
   // long we exist in the next state (behaviour)
@@ -459,48 +572,13 @@ void initialBehaviour() {
   //       we don't select 1 as this is INITIAL (this function)
   //       and random is returning up to 8 (e.g., 7.9) which
   //       is rounded down by (int) to just 7
-  int which = (int)random( 2, 8 );
+  //int which = (int)random( 2, 8 );
+  int which = 4;
 
   // Action state transition
   changeState( which );
 }
 
-void driveStraight() {
-
-  // If we have been doing this for more than 3 seconds,
-  // we transition out of this behaviour.
-  // Note that, behaviour_t is reset by the changeState
-  // function, called by every state when transitioning.
-  unsigned long elapsed_t = (millis() - behaviour_t );
-  if (  elapsed_t > 3000 ) {   // More than 3s, change state.
-
-    // This ensures that the PID are reset
-    // and sets the new STATE flag.
-    changeState( STATE_INITIAL );
-    return;
-
-  } else { // Otherwise, drive straight.
-
-    // We want to keep the difference in the Romi theta
-    // between time steps to 0.
-    float delta_theta = RomiPose.last_theta - RomiPose.theta;
-
-    // Demand 0, change in theta is measurement.
-    float bearing = H_PID.update( 0, delta_theta );
-
-    // Foward speed.
-    float fwd_bias = STRAIGHT_FWD_SPEED;
-
-    // PID speed control.
-    float l_pwr = L_PID.update( (fwd_bias - bearing), l_speed_t3 );
-    float r_pwr = R_PID.update( (fwd_bias + bearing), r_speed_t3 );
-
-    // Write power to motors.
-    L_Motor.setPower(l_pwr);
-    R_Motor.setPower(r_pwr);
-
-  }
-}
 
 void avoidObstacle() {
 
@@ -689,9 +767,3 @@ void randomWalk() {
   }// End of (elapsed_t > 6000) if()
 
 }// End of this behaviour.
-
-
-
-
-
-

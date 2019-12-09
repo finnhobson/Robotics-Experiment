@@ -8,8 +8,8 @@ u8 USB_SendSpace(u8 ep);
 
 const byte MAP_RESOLUTION = 25;
 const byte MAP_DEFAULT_FEATURE = '#';
-const int MAP_X = 1800;
-const int MAP_Y = 1800;
+const int MAP_X = 1000;
+const int MAP_Y = 1000;
 
 class Mapper {
   public:
