@@ -89,8 +89,8 @@ bool angle_setup;
 float demand_angle;
 
 float turn_time;
-float turnPWM = 25.0f
-int drivePWM = 30
+float turnPWM = 25.0f;
+int drivePWM = 30;
 
 // used by timer3.h to calculate left and right wheel speed.
 volatile float l_speed_t3, r_speed_t3;
@@ -180,6 +180,7 @@ void loop() {
 
   // Always update kinematics
   RomiPose.update( left_count, right_count );
+  
 
   // Runs a behaviour every 50ms, skips otherwise.
   // Therefore, behaviours update 20 times a second
@@ -214,7 +215,7 @@ void loop() {
     if ( IRSensor0.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
       float distanceIR = IRSensor0.getDistanceInMM();
       digitalWrite(DEBUG_LED, HIGH);
-      Map.updateMapFeature( 'O' , RomiPose.x + distanceIR * sin(RomiPose.theta), RomiPose.y + distanceIR * sin(RomiPose.theta));
+      Map.updateMapFeature( 'O' , (float)(RomiPose.x + distanceIR * sin(RomiPose.theta)), (float)(RomiPose.y + distanceIR * sin(RomiPose.theta)));
       // Set next state to obstacle avoidance,
       changeState( STATE_AVOID_OBJECT );
     } else {
