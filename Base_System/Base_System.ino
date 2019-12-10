@@ -59,6 +59,9 @@ u8 USB_SendSpace(u8 ep);
 #define H_IGAIN   0.0001
 #define H_DGAIN   0.0
 
+#define turnPWM 25.0f
+#define drivePWM 30
+
 
 /*****************************************************************************
     CLASS INSTANCES (global)
@@ -89,8 +92,6 @@ bool angle_setup;
 float demand_angle;
 
 float turn_time;
-float turnPWM = 25.0f;
-int drivePWM = 30;
 
 // used by timer3.h to calculate left and right wheel speed.
 volatile float l_speed_t3, r_speed_t3;

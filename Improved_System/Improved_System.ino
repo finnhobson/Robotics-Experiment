@@ -57,6 +57,8 @@ u8 USB_SendSpace(u8 ep);
 #define H_IGAIN   0.0001
 #define H_DGAIN   0.0
 
+#define turnPWM 25.0f
+#define drivePWM 30
 
 /*****************************************************************************
     CLASS INSTANCES (global)
@@ -88,8 +90,6 @@ bool angle_setup;
 float demand_angle;
 
 float turn_time;
-float turnPWM = 25.0f;
-int drivePWM = 30;
 float last_loc;
 
 // used by timer3.h to calculate left and right wheel speed.
@@ -101,9 +101,9 @@ int STATE;
 #define STATE_CALIBRATE       0    // calibrates line sensor
 #define STATE_DRIVE_STRAIGHT  1    // Robot drives in a straight line until map edge or obstacle
 #define STATE_TURN_90         2
-#define STATE_NEXT_GRID_LINE  3    
-#define STATE_TURN_180        4  
-#define STATE_DONE            5  
+#define STATE_NEXT_GRID_LINE  3
+#define STATE_TURN_180        4
+#define STATE_DONE            5
 
 
 
@@ -182,7 +182,7 @@ void loop() {
 
   // Always update kinematics
   RomiPose.update( left_count, right_count );
-  
+
 
   // Runs a behaviour every 50ms, skips otherwise.
   // Therefore, behaviours update 20 times a second
@@ -237,24 +237,24 @@ void loop() {
         break;
 
       case STATE_TURN_90:
-      turnToDemand();
-      break;
+        turnToDemand();
+        break;
 
       case STATE_TURN_180:
-      turnToDemand();
-      break;
+        turnToDemand();
+        break;
 
       case STATE_NEXT_GRID_LINE:
-      nextGridLine(); 
-      break;
+        nextGridLine();
+        break;
 
       case STATE_DONE:
-      L_Motor.setPower(0);
-      R_Motor.setPower(0);
-      break;
-      
+        L_Motor.setPower(0);
+        R_Motor.setPower(0);
+        break;
 
-        default: // unknown, this would be an error.
+
+      default: // unknown, this would be an error.
         reportUnknownState();
         break;
 
@@ -277,10 +277,10 @@ void driveStraight() {
     if ( RomiPose.x <= 1 ||  RomiPose.x >= (MAP_X - 1)  ) {
       changeState( STATE_TURN_90 );
     }
-    if (RomiPose.y >= MAP_Y){
+    if (RomiPose.y >= MAP_Y) {
       changeState(STATE_DONE);
     }
-    
+
   }
 
   float theta_error = demand_angle - RomiPose.theta;
@@ -304,20 +304,15 @@ void driveStraight() {
 
 
 void nextGridLine() {
-
-  
-  
-
-  if(RomiPose.y - last_loc < MAP_Y/MAP_RESOLUTION){
-    L_Motor.setPower(15);
-    R_Motor.setPower(15);
+  if (RomiPose.y - last_loc < MAP_Y / MAP_RESOLUTION) {
+    L_Motor.setPower(drivePWM);
+    R_Motor.setPower(drivePWM);
   }
-  else{
-    
+  else {
+
     changeState(STATE_TURN_180);
   }
 
-  
 }
 
 
@@ -326,20 +321,19 @@ void turnToDemand() {
   float diff = abs(RomiPose.theta - demand_angle);
   if (  diff < 0.02 ) {
 
-    if( STATE == STATE_TURN_90 ){
+    if ( STATE == STATE_TURN_90 ) {
       changeState( STATE_NEXT_GRID_LINE);
     }
-    if( STATE == STATE_TURN_180  ){
+    if ( STATE == STATE_TURN_180  ) {
       changeState( STATE_DRIVE_STRAIGHT );
     }
-    
   }
 
-  else if(left_turn_last) {
+  else if (left_turn_last) {
     L_Motor.setPower(turnPWM);
     R_Motor.setPower(-turnPWM);
   }
-  else{
+  else {
     L_Motor.setPower(-turnPWM);
     R_Motor.setPower(turnPWM);
   }
@@ -431,7 +425,7 @@ void reportUnknownState() {
 void changeState( int which ) {
 
   last_loc = RomiPose.y;
-  
+
   // If, for some reason, we ask to change
   // to the state we are already in, we just
   // return with no action.
@@ -448,19 +442,19 @@ void changeState( int which ) {
     demand_angle = RomiPose.theta;
   }
   if (which == STATE_TURN_90) {
-    demand_angle = PI/2;
+    demand_angle = PI / 2;
     left_turn_last = !left_turn_last;
-    
+
   }
   if (which == STATE_TURN_180) {
-    if(left_turn_last){
+    if (left_turn_last) {
       demand_angle = PI;
     }
-    else{
+    else {
       demand_angle = 0;
     }
   }
-  
+
 
   // Reset the timestamp to track how
   // long we exist in the next state (behaviour)
