@@ -59,8 +59,8 @@ u8 USB_SendSpace(u8 ep);
 #define H_IGAIN   0.0001
 #define H_DGAIN   0.0
 
-#define turnPWM 25.0f
-#define drivePWM 30
+#define turnPWM 30.0f
+#define drivePWM 40
 
 
 /*****************************************************************************

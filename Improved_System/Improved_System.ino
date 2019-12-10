@@ -57,8 +57,8 @@ u8 USB_SendSpace(u8 ep);
 #define H_IGAIN   0.0001
 #define H_DGAIN   0.0
 
-#define turnPWM 25.0f
-#define drivePWM 30
+#define turnPWM 30.0f
+#define drivePWM 40
 
 /*****************************************************************************
     CLASS INSTANCES (global)
@@ -186,7 +186,7 @@ void loop() {
 
   // Runs a behaviour every 50ms, skips otherwise.
   // Therefore, behaviours update 20 times a second
-  if (  millis() - update_t > 5 ) {
+  if (  millis() - update_t > 2 ) {
     update_t = millis();
 
     /*Serial.print( STATE );
@@ -297,19 +297,18 @@ void driveStraight() {
   int left_demand = drivePWM - turn_pwm;
   int right_demand = drivePWM + turn_pwm;
 
-  L_Motor.setPower(left_demand);
+  L_Motor.setPower(left_demand+1);
   R_Motor.setPower(right_demand);
 
 }
 
 
 void nextGridLine() {
-  if (RomiPose.y - last_loc < MAP_Y / MAP_RESOLUTION) {
-    L_Motor.setPower(drivePWM);
-    R_Motor.setPower(drivePWM);
+  if (RomiPose.y - last_loc < MAP_Y / MAP_RESOLUTION - 5) {
+    L_Motor.setPower((int)(drivePWM*0.6));
+    R_Motor.setPower((int)(drivePWM*0.6));
   }
   else {
-
     changeState(STATE_TURN_180);
   }
 
@@ -319,7 +318,7 @@ void nextGridLine() {
 void turnToDemand() {
 
   float diff = abs(RomiPose.theta - demand_angle);
-  if (  diff < 0.02 ) {
+  if (  diff < 0.01 ) {
 
     if ( STATE == STATE_TURN_90 ) {
       changeState( STATE_NEXT_GRID_LINE);
@@ -330,11 +329,11 @@ void turnToDemand() {
   }
 
   else if (left_turn_last) {
-    L_Motor.setPower(turnPWM);
+    L_Motor.setPower(turnPWM+1);
     R_Motor.setPower(-turnPWM);
   }
   else {
-    L_Motor.setPower(-turnPWM);
+    L_Motor.setPower(-turnPWM-1);
     R_Motor.setPower(turnPWM);
   }
 }

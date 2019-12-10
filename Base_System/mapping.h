@@ -6,7 +6,7 @@
 u8 USB_SendSpace(u8 ep);
 #define SERIAL_ACTIVE (USB_SendSpace(CDC_TX) >= 50)
 
-const byte MAP_RESOLUTION = 30;
+const byte MAP_RESOLUTION = 20;
 const byte MAP_DEFAULT_FEATURE = '#';
 const int MAP_X = 600;
 const int MAP_Y = 600;
