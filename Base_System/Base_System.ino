@@ -13,9 +13,6 @@
 #include "utils.h"      // Used to generate random gaussian numbers.
 #include "irproximity.h"// Used for the ir distance sensor.
 
-//#include "imu.h"          // Advanced, work through labsheet if you wish to use.
-//#include "magnetometer.h" // Advanced, work through labsheet if you wish to use.
-
 #include <USBCore.h>    // To fix serial print behaviour bug.
 u8 USB_SendSpace(u8 ep);
 #define SERIAL_ACTIVE (USB_SendSpace(CDC_TX) >= 50)
@@ -184,7 +181,7 @@ void loop() {
 
   // Runs a behaviour every 50ms, skips otherwise.
   // Therefore, behaviours update 20 times a second
-  if (  millis() - update_t > 20 ) {
+  if (  millis() - update_t > 5 ) {
     update_t = millis();
 
     /*Serial.print( STATE );
@@ -210,38 +207,20 @@ void loop() {
       Map.updateMapFeature( '.' , RomiPose.x, RomiPose.y );
     }
 
-    // We always check for obstacles.  If we
-    // detect one, we immediately change state
-    // to avoid obstacles. Note, comes after
-    // line detection, so in effect higher
-    // priority ( the last to change the state)
-    if ( SERIAL_ACTIVE ) Serial.println( IRSensor0.getDistanceInMM() );
+    //Check for obstacles
+    //if ( SERIAL_ACTIVE ) Serial.println( IRSensor0.getDistanceInMM() );
     if ( IRSensor0.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
       float distanceIR = IRSensor0.getDistanceInMM();
-      // Record that we found an obstruction
-      // Note that, this places the object in the map at
-      // the romi x/y, not taking account for the distance
-      // measure to the object itself.
-      // Using LED just to see if it is working.
       digitalWrite(DEBUG_LED, HIGH);
       Map.updateMapFeature( 'O' , RomiPose.x + distanceIR * sin(RomiPose.theta), RomiPose.y + distanceIR * sin(RomiPose.theta));
-      //      Map.updateMapFeature( 'O' , RomiPose.x, RomiPose.y );
-
       // Set next state to obstacle avoidance,
-      // caught be switch below.
       changeState( STATE_AVOID_OBJECT );
-
     } else {
       digitalWrite(DEBUG_LED, LOW);
     }
 
 
-    // Note that, STATE is set at the transition (exit)
-    // out of any of the below STATE_ functions, with the
-    // exception of finding the line or an obstacle above.
-    // You should rebuild this state machine to suit your
-    // objective.  You can do this by changing which state
-    // is set when a behaviour finishes (see behaviours code).
+    // Choose relevant helper functioned based on current state
     switch ( STATE ) {
 
       case STATE_CALIBRATE:
@@ -265,7 +244,8 @@ void loop() {
         break;
 
     } // End of state machine switch()
-  } // End of update_t if()
+
+  } // End of millis
 
   // Small delay to prevent millis = 0
   delay(1);
@@ -279,7 +259,6 @@ void driveStraight() {
   // If we reach the edge of the map, switch to changeAngle behaviour
   unsigned long elapsed_t = (millis() - behaviour_t );
   if (  elapsed_t > 500 ) {
-
     if ( RomiPose.x <= 1 || RomiPose.y <= 1 || RomiPose.x >= (MAP_X - 1) || RomiPose.y >= (MAP_Y - 1) ) {
       changeState( STATE_AVOID_EDGE );
     }
@@ -522,9 +501,6 @@ void calibrateSensors() {
   // Line sensor.
   LineSensor.calibrate();
 
-  // Other sensors..?
-
-  // After calibrating, we send the robot to
-  // its initial state.
+  // After calibrating, we send the robot to initial state.
   changeState( STATE_DRIVE_STRAIGHT );
 }
