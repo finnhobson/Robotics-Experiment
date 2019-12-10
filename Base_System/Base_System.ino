@@ -89,6 +89,8 @@ bool angle_setup;
 float demand_angle;
 
 float turn_time;
+float turnPWM = 25.0f
+int drivePWM = 30
 
 // used by timer3.h to calculate left and right wheel speed.
 volatile float l_speed_t3, r_speed_t3;
@@ -275,8 +277,8 @@ void driveStraight() {
   }
   else turn_pwm = 0;
 
-  int left_demand = 30 - turn_pwm;
-  int right_demand = 30 + turn_pwm;
+  int left_demand = drivePWM - turn_pwm;
+  int right_demand = drivePWM + turn_pwm;
 
   L_Motor.setPower(left_demand);
   R_Motor.setPower(right_demand);
@@ -292,8 +294,8 @@ void avoidObject() {
   }
 
   else {
-    L_Motor.setPower(-25.0f);
-    R_Motor.setPower(24.0f);
+    L_Motor.setPower(-turnPWM);
+    R_Motor.setPower(turnPWM);
   }
 }
 
@@ -306,8 +308,8 @@ void avoidEdge() {
   }
 
   else {
-    L_Motor.setPower(-25.0f);
-    R_Motor.setPower(24.0f);
+    L_Motor.setPower(-turnPWM);
+    R_Motor.setPower(turnPWM);
   }
 }
 
