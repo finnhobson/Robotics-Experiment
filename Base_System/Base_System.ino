@@ -142,11 +142,11 @@ void setup() {
   Map.start();
 
   angle_setup = false;
-  
+
   demand_angle = 0;
 
   randomSeed(analogRead(0));
-  
+
   // Start up the serial port.
   Serial.begin(9600);
 
@@ -188,10 +188,10 @@ void loop() {
     update_t = millis();
 
     /*Serial.print( STATE );
-    Serial.print( ", " );
-    Serial.print( demand_angle );
-    Serial.print( ", " );
-    Serial.println( RomiPose.theta );*/
+      Serial.print( ", " );
+      Serial.print( demand_angle );
+      Serial.print( ", " );
+      Serial.println( RomiPose.theta );*/
 
     // We check for a line, and if we find one
     // we immediately change state to line following.
@@ -215,16 +215,17 @@ void loop() {
     // to avoid obstacles. Note, comes after
     // line detection, so in effect higher
     // priority ( the last to change the state)
-    //if ( SERIAL_ACTIVE ) Serial.println( IRSensor0.getDistanceInMM() );
+    if ( SERIAL_ACTIVE ) Serial.println( IRSensor0.getDistanceInMM() );
     if ( IRSensor0.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
-
+      float distanceIR = IRSensor0.getDistanceInMM();
       // Record that we found an obstruction
       // Note that, this places the object in the map at
       // the romi x/y, not taking account for the distance
       // measure to the object itself.
       // Using LED just to see if it is working.
       digitalWrite(DEBUG_LED, HIGH);
-      Map.updateMapFeature( 'O' , RomiPose.x, RomiPose.y );
+      Map.updateMapFeature( 'O' , RomiPose.x + distanceIR * sin(RomiPose.theta), RomiPose.y + distanceIR * sin(RomiPose.theta));
+      //      Map.updateMapFeature( 'O' , RomiPose.x, RomiPose.y );
 
       // Set next state to obstacle avoidance,
       // caught be switch below.
@@ -236,13 +237,13 @@ void loop() {
 
 
     // Note that, STATE is set at the transition (exit)
-    // out of any of the below STATE_ functions, with the 
+    // out of any of the below STATE_ functions, with the
     // exception of finding the line or an obstacle above.
     // You should rebuild this state machine to suit your
     // objective.  You can do this by changing which state
     // is set when a behaviour finishes (see behaviours code).
     switch ( STATE ) {
-      
+
       case STATE_CALIBRATE:
         calibrateSensors();
         break;
@@ -277,17 +278,17 @@ void driveStraight() {
 
   // If we reach the edge of the map, switch to changeAngle behaviour
   unsigned long elapsed_t = (millis() - behaviour_t );
-  if (  elapsed_t > 500 ) {   
+  if (  elapsed_t > 500 ) {
 
     if ( RomiPose.x <= 1 || RomiPose.y <= 1 || RomiPose.x >= (MAP_X - 1) || RomiPose.y >= (MAP_Y - 1) ) {
       changeState( STATE_AVOID_EDGE );
     }
-  } 
+  }
 
   float theta_error = demand_angle - RomiPose.theta;
   int turn_pwm = 0;
 
-  if (theta_error > 0){
+  if (theta_error > 0) {
     turn_pwm = -2;
   }
   else if (theta_error < 0) {
@@ -300,16 +301,16 @@ void driveStraight() {
 
   L_Motor.setPower(left_demand);
   R_Motor.setPower(right_demand);
-  
+
 }
 
 
 void avoidObject() {
 
   unsigned long elapsed_t = (millis() - behaviour_t );
-  if (  elapsed_t > turn_time ) {   
+  if (  elapsed_t > turn_time ) {
     changeState( STATE_DRIVE_STRAIGHT );
-  } 
+  }
 
   else {
     L_Motor.setPower(-25.0f);
@@ -321,9 +322,9 @@ void avoidObject() {
 void avoidEdge() {
 
   float diff = abs(RomiPose.theta - demand_angle);
-  if (  diff < 0.02 ) {   
+  if (  diff < 0.02 ) {
     changeState( STATE_DRIVE_STRAIGHT );
-  } 
+  }
 
   else {
     L_Motor.setPower(-25.0f);
@@ -333,7 +334,7 @@ void avoidEdge() {
 
 /*****************************************************************************
     Helper functions.
-    These are used to perform some operations which are not a 
+    These are used to perform some operations which are not a
     significant part of the Romi behaviour or state machine.
 
 
@@ -471,40 +472,40 @@ float pickAngle() {
   bool yTop = RomiPose.y >= (MAP_Y - 30);
 
   if (xBottom && yBottom) {
-    angle = random(0, (PI/2)*100)/100.0f;
+    angle = random(0, (PI / 2) * 100) / 100.0f;
     Serial.println("BOTTOM LEFT");
   }
   else if (xBottom && yTop) {
-    angle = random((-PI/2)*100, 0)/100.0f;
+    angle = random((-PI / 2) * 100, 0) / 100.0f;
     Serial.println("BOTTOM RIGHT");
   }
   else if (xTop && yBottom) {
-    angle = random((PI/2)*100, PI*99)/100.0f;
+    angle = random((PI / 2) * 100, PI * 99) / 100.0f;
     Serial.println("TOP LEFT");
   }
   else if (xTop && yTop) {
-    angle = random((-PI)*99, (-PI/2)*100)/100.0f;
+    angle = random((-PI) * 99, (-PI / 2) * 100) / 100.0f;
     Serial.println("TOP RIGHT");
   }
   else if (xBottom) {
-    angle = random((-PI/2)*100, (PI/2)*100)/100.0f;
+    angle = random((-PI / 2) * 100, (PI / 2) * 100) / 100.0f;
     Serial.println("BOTTOM");
   }
   else if (yBottom) {
-    angle = random(0, PI*99)/100.0f;
+    angle = random(0, PI * 99) / 100.0f;
     Serial.println("LEFT");
   }
   else if (xTop) {
-    angle = random((PI/2)*100, (3*(PI/2))*100)/100.0f;
+    angle = random((PI / 2) * 100, (3 * (PI / 2)) * 100) / 100.0f;
     Serial.println("TOP");
   }
   else if (yTop) {
-    angle = random((-PI)*99, 0)/100.0f;
+    angle = random((-PI) * 99, 0) / 100.0f;
     Serial.println("RIGHT");
   }
 
-  while( angle < -PI ) angle += TWO_PI;
-  while( angle > PI ) angle -= TWO_PI;
+  while ( angle < -PI ) angle += TWO_PI;
+  while ( angle > PI ) angle -= TWO_PI;
   Serial.println(angle);
   return angle;
 }
