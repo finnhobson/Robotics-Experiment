@@ -212,17 +212,17 @@ void loop() {
       Map.updateMapFeature( '.' , RomiPose.x, RomiPose.y );
     }
 
-    //Check for obstacles
-    //if ( SERIAL_ACTIVE ) Serial.println( IRSensor0.getDistanceInMM() );
-    if ( IRSensor0.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
-      float distanceIR = IRSensor0.getDistanceInMM();
-      digitalWrite(DEBUG_LED, HIGH);
-      Map.updateMapFeature( 'O' , (float)(RomiPose.x + distanceIR * sin(RomiPose.theta)), (float)(RomiPose.y + distanceIR * sin(RomiPose.theta)));
-      // Set next state to obstacle avoidance,
-      changeState( STATE_TURN_90 );
-    } else {
-      digitalWrite(DEBUG_LED, LOW);
-    }
+//    //Check for obstacles
+//    //if ( SERIAL_ACTIVE ) Serial.println( IRSensor0.getDistanceInMM() );
+//    if ( IRSensor0.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
+//      float distanceIR = IRSensor0.getDistanceInMM();
+//      digitalWrite(DEBUG_LED, HIGH);
+//      Map.updateMapFeature( 'O' , (float)(RomiPose.x + distanceIR * sin(RomiPose.theta)), (float)(RomiPose.y + distanceIR * sin(RomiPose.theta)));
+//      // Set next state to obstacle avoidance,
+//      changeState( STATE_TURN_90 );
+//    } else {
+//      digitalWrite(DEBUG_LED, LOW);
+//    }
 
 
     // Choose relevant helper functioned based on current state
