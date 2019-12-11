@@ -88,8 +88,8 @@ void Kinematics::update( long left, long right ) {
     
     // Lets wrap theta to keep it between 0 and TWO_PI
     // Not strictly necessary, but predictable at least.
-    while ( theta < -PI ) theta += TWO_PI;
-    while ( theta > PI ) theta -= TWO_PI;
+    while ( theta < -2*PI ) theta += TWO_PI;
+    while ( theta > 2*PI ) theta -= TWO_PI;
 
 
   }
@@ -122,8 +122,8 @@ void Kinematics::update( long left, long right ) {
 
     // Lets wrap theta to keep it between 0 and TWO_PI
     // Not strictly necessary, but predictable at least.
-    while ( theta < -PI ) theta += TWO_PI;
-    while ( theta > PI ) theta -= TWO_PI;
+    while ( theta < -2*PI ) theta += TWO_PI;
+    while ( theta > 2*PI ) theta -= TWO_PI;
 
     // Integrate this movement step by rotating
     // the x contribution by theta, therefore "sharing" it

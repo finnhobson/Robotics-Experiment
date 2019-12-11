@@ -33,7 +33,8 @@ u8 USB_SendSpace(u8 ep);
 
 #define BUZZER_PIN      6   // To make the annoying beeping
 
-#define IR_PROX_PIN    A0   // IR Sensor
+#define IR_PROX_PIN_L    A0   //IR Sensors
+#define IR_PROX_PIN_R    A1
 
 #define DEBUG_LED      13   // Using the orange LED for debugging
 
@@ -43,9 +44,9 @@ u8 USB_SendSpace(u8 ep);
 // Behaviour parameters
 #define LINE_THRESHOLD        200.00
 #define STRAIGHT_PWM          40.0
-#define TURN_PWM              30.0
+#define TURN_PWM              21.0
 #define LINE_FOLLOW_SPEED     8.0
-#define IR_DETECTD_THRESHOLD  100   // a close reading in mm (danger)
+#define IR_DETECTD_THRESHOLD  85   // a close reading in mm (danger)
 #define IR_AVOIDED_THRESHOLD  140   // a distant reading in mm (safe)
 
 // Speed controller for motors.
@@ -70,7 +71,8 @@ Motor       R_Motor( M1_PWM, M1_DIR );                       // To set right mot
 PID         L_PID( SPD_PGAIN, SPD_IGAIN, SPD_DGAIN );       // Speed control, left.
 PID         R_PID( SPD_PGAIN, SPD_IGAIN, SPD_DGAIN );       // Speed control, right.
 PID         H_PID( H_PGAIN, H_IGAIN, H_DGAIN );             // Position control, angle.
-SharpIR     IRSensor0( IR_PROX_PIN );                       // Get distance to objects (incomplete class)
+SharpIR     IRSensor0( IR_PROX_PIN_L );                      //Get distance to objects (incomplete class)
+SharpIR     IRSensor1( IR_PROX_PIN_R );
 Kinematics  RomiPose;                                       // Not using ICC.
 Mapper      Map;                                            // Default: 25x25 grid, 72mm resolution.
 
@@ -87,6 +89,9 @@ bool left_turn_last = 0; //turn right first
 
 bool angle_setup;
 float demand_angle;
+
+float last_line_x;
+float last_line_y;
 
 float turn_time;
 float last_loc;
@@ -181,12 +186,39 @@ void loop() {
 
   // Always update kinematics
   RomiPose.update( left_count, right_count );
+  
 
+  // Runs a behaviour every 50ms, skips otherwise.
+  // Therefore, behaviours update 20 times a second
+  if (  millis() - update_t > 5 ) {
+    update_t = millis();
 
-  // Check for obstacle every 50ms
-  if (millis() - update_t > 50) {
-    
-    // ***DOUBLE IR SENSORS:***
+    /*Serial.print( STATE );
+      Serial.print( ", " );
+      Serial.print( demand_angle );
+      Serial.print( ", " );
+      Serial.println( RomiPose.theta );*/
+
+    // We check for a line, and if we find one
+    // we immediately change state to line following.
+    if ( LineSensor.onLine( LINE_THRESHOLD ) ) {
+
+      // Record that we found a line.
+      Map.updateMapFeature( 'L' , RomiPose.x, RomiPose.y );
+      last_line_x = RomiPose.x;
+      last_line_y = RomiPose.y;
+
+      // Set next state to line following, caught
+      // by switch below
+      //changeState( STATE_FOLLOW_LINE );
+
+    }
+
+    else {
+      Map.updateMapFeature( '.' , RomiPose.x, RomiPose.y );
+    }
+
+    //Check for obstacles
     //if ( SERIAL_ACTIVE ) Serial.println( IRSensor0.getDistanceInMM() );
     if ( IRSensor0.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
 
@@ -196,6 +228,8 @@ void loop() {
 
       obstacleUpdateLeft();
 
+      // Set next state to obstacle avoidance,
+      // caught be switch below.
       changeState( STATE_TURN_90 );
     }
 
@@ -207,46 +241,13 @@ void loop() {
 
       obstacleUpdateRight();
 
-      changeState( STATE_TURN_90 );
-
-    } else {
-      digitalWrite(DEBUG_LED, LOW);
-    }
-
-    // ***SINGLE IR SENSOR:***
-    /*//if ( SERIAL_ACTIVE ) Serial.println( IRSensor0.getDistanceInMM() );
-    if ( IRSensor0.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
-      float distanceIR = IRSensor0.getDistanceInMM();
-      digitalWrite(DEBUG_LED, HIGH);
-      Map.updateMapFeature( 'O' , (float)(RomiPose.x + distanceIR * sin(RomiPose.theta)), (float)(RomiPose.y + distanceIR * sin(RomiPose.theta)));
       // Set next state to obstacle avoidance,
+      // caught be switch below.
       changeState( STATE_TURN_90 );
+
     } else {
       digitalWrite(DEBUG_LED, LOW);
-    }*/
-  }
-
-
-  // Runs a behaviour every 50ms, skips otherwise.
-  // Therefore, behaviours update 20 times a second
-  if (  millis() - update_t > 2 ) {
-    update_t = millis();
-
-    // We check for a line, and if we find one
-    // we immediately change state to line following.
-    if ( LineSensor.onLine( LINE_THRESHOLD ) ) {
-
-      // Record that we found a line.
-      Map.updateMapFeature( 'L' , RomiPose.x, RomiPose.y );
-
-      // Set next state to line following
-      //changeState( STATE_FOLLOW_LINE );
     }
-
-    else {
-      Map.updateMapFeature( '.' , RomiPose.x, RomiPose.y );
-    }
-
     
     // Choose relevant helper functioned based on current state
     switch ( STATE ) {
@@ -318,7 +319,7 @@ void driveStraight() {
   else turn_pwm = 0;
 
   int left_demand = STRAIGHT_PWM - turn_pwm;
-  int right_demand = STRAIGHT_PWM + turn_pwm;
+  int right_demand = STRAIGHT_PWM +2 + turn_pwm;
 
   L_Motor.setPower(left_demand);
   R_Motor.setPower(right_demand);
@@ -329,7 +330,7 @@ void driveStraight() {
 void nextGridLine() {
   if (RomiPose.y - last_loc < MAP_Y / MAP_RESOLUTION - 5) {
     L_Motor.setPower((int)(STRAIGHT_PWM*0.6));
-    R_Motor.setPower((int)(STRAIGHT_PWM*0.6));
+    R_Motor.setPower((int)(STRAIGHT_PWM*0.6+2));
   }
   else {
     changeState(STATE_TURN_180);
@@ -352,12 +353,12 @@ void turnToDemand() {
   }
 
   else if (left_turn_last) {
-    L_Motor.setPower(TURN_PWM);
-    R_Motor.setPower(-TURN_PWM);
+    L_Motor.setPower((float)TURN_PWM);
+    R_Motor.setPower((float)-TURN_PWM-2);
   }
   else {
-    L_Motor.setPower(-TURN_PWM);
-    R_Motor.setPower(TURN_PWM);
+    L_Motor.setPower((float)-TURN_PWM);
+    R_Motor.setPower((float)TURN_PWM+2);
   }
 }
 
@@ -513,3 +514,70 @@ void calibrateSensors() {
   // After calibrating, we send the robot to initial state.
   changeState( STATE_DRIVE_STRAIGHT );
 }
+
+
+void obstacleUpdateLeft() {
+  float angle_romi = RomiPose.theta;
+  float angle_sensor = angle_romi - 0.0349;
+  if ( angle_sensor < 0 ) {
+    angle_sensor = 2*PI + angle_sensor;
+  }
+  float total_dist = IRSensor0.getDistanceInMM();
+  total_dist =  total_dist + 143/2;
+  if ( angle_sensor > 0 && angle_sensor < PI/2 ) {
+    float dist_x = cos(angle_sensor) * total_dist;
+    float dist_y = sin(angle_sensor) * total_dist;
+    Map.updateMapFeature( 'O' , RomiPose.x + dist_x, RomiPose.y + dist_y );
+  }
+  else if ( angle_sensor > PI/2 && angle_sensor < PI ) {
+    float new_angle = PI - angle_sensor;
+    float dist_x = cos(new_angle) * total_dist;
+    float dist_y = sin(new_angle) * total_dist;
+    Map.updateMapFeature( 'O' , RomiPose.x - dist_x, RomiPose.y + dist_y );
+  }
+  else if (angle_sensor > PI && angle_sensor < 3*PI/2 ) {
+    float new_angle = angle_sensor - PI;
+    float dist_x = cos(new_angle) * total_dist;
+    float dist_y = sin(new_angle) * total_dist;
+    Map.updateMapFeature( 'O' , RomiPose.x - dist_x, RomiPose.y - dist_y );
+  }
+  else if (angle_sensor > 3*PI/2 && angle_sensor < 2*PI ) {
+    float new_angle = angle_sensor - 3*PI/2;
+    float dist_x = sin(new_angle) * total_dist;
+    float dist_y = cos(new_angle) * total_dist;
+    Map.updateMapFeature( 'O' , RomiPose.x + dist_x, RomiPose.y - dist_y );
+  }
+}// End of this behaviour.
+
+void obstacleUpdateRight() {
+  float angle_romi = RomiPose.theta * (360 / TWO_PI);
+  float angle_sensor = angle_romi + 0.0349;
+  if ( angle_sensor > 2*PI ) {
+    angle_sensor = angle_sensor - 2*PI;
+  }
+  float total_dist = IRSensor0.getDistanceInMM();
+  total_dist =  total_dist + 143/2;
+  if ( angle_sensor > 0 && angle_sensor < PI/2 ) {
+    float dist_x = cos(angle_sensor) * total_dist;
+    float dist_y = sin(angle_sensor) * total_dist;
+    Map.updateMapFeature( 'O' , RomiPose.x + dist_x, RomiPose.y + dist_y );
+  }
+  else if ( angle_sensor > PI/2 && angle_sensor < PI ) {
+    float new_angle = PI - angle_sensor;
+    float dist_x = cos(new_angle) * total_dist;
+    float dist_y = sin(new_angle) * total_dist;
+    Map.updateMapFeature( 'O' , RomiPose.x - dist_x, RomiPose.y + dist_y );
+  }
+  else if (angle_sensor > PI && angle_sensor < 3*PI/2 ) {
+    float new_angle = angle_sensor - PI;
+    float dist_x = cos(new_angle) * total_dist;
+    float dist_y = sin(new_angle) * total_dist;
+    Map.updateMapFeature( 'O' , RomiPose.x - dist_x, RomiPose.y - dist_y );
+  }
+  else if (angle_sensor > 3*PI/2 && angle_sensor < 2*PI ) {
+    float new_angle = angle_sensor - 3*PI/2;
+    float dist_x = sin(new_angle) * total_dist;
+    float dist_y = cos(new_angle) * total_dist;
+    Map.updateMapFeature( 'O' , RomiPose.x + dist_x, RomiPose.y - dist_y );
+  }
+}// End of this behaviour.

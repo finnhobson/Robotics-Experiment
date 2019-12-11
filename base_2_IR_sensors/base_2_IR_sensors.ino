@@ -41,11 +41,14 @@ u8 USB_SendSpace(u8 ep);
 #define BUTTON_A       14   // Push button labelled A on board.
 #define BUTTON_B       30   // Push button labelled B on board.
 
+#define STRAIGHT_PWM          40.0
+#define TURN_PWM              21.0
+
 // Behaviour parameters
 #define LINE_THRESHOLD        200.00
 #define STRAIGHT_FWD_SPEED    10.0
 #define LINE_FOLLOW_SPEED     8.0
-#define IR_DETECTD_THRESHOLD  100   // a close reading in mm (danger)
+#define IR_DETECTD_THRESHOLD  85   // a close reading in mm (danger)
 #define IR_AVOIDED_THRESHOLD  140   // a distant reading in mm (safe)
 
 // Speed controller for motors.
@@ -87,11 +90,7 @@ unsigned long behaviour_t;// Use to track how long a behaviour has run.
 
 bool angle_setup;
 float demand_angle;
-
 float turn_time;
-float turnPWM = 25.0f;
-int drivePWM = 30;
-
 float last_line_x;
 float last_line_y;
 
@@ -302,8 +301,8 @@ void driveStraight() {
   }
   else turn_pwm = 0;
 
-  int left_demand = drivePWM - turn_pwm;
-  int right_demand = drivePWM + turn_pwm;
+  int left_demand = STRAIGHT_PWM - turn_pwm;
+  int right_demand = STRAIGHT_PWM +2 + turn_pwm;
 
   L_Motor.setPower(left_demand);
   R_Motor.setPower(right_demand);
@@ -319,8 +318,8 @@ void avoidObject() {
   }
 
   else {
-    L_Motor.setPower(-turnPWM);
-    R_Motor.setPower(turnPWM);
+    L_Motor.setPower((float)-TURN_PWM);
+    R_Motor.setPower((float)TURN_PWM+2);
   }
 }
 
@@ -333,8 +332,8 @@ void avoidEdge() {
   }
 
   else {
-    L_Motor.setPower(-turnPWM);
-    R_Motor.setPower(turnPWM);
+    L_Motor.setPower((float)-TURN_PWM);
+    R_Motor.setPower((float)TURN_PWM+2);
   }
 }
 
@@ -531,31 +530,32 @@ void calibrateSensors() {
 }
 
 void obstacleUpdateLeft() {
-  float angle_romi = RomiPose.theta * (360 / TWO_PI);
-  float angle_sensor = angle_romi - 20;
+  float angle_romi = RomiPose.theta;
+  float angle_sensor = angle_romi - 0.0349;
   if ( angle_sensor < 0 ) {
-    angle_sensor = 360 + angle_sensor;
+    angle_sensor = 2*PI + angle_sensor;
   }
   float total_dist = IRSensor0.getDistanceInMM();
-  if ( angle_sensor > 0 && angle_sensor < 90 ) {
-    float dist_x = sin(angle_sensor) * total_dist;
-    float dist_y = cos(angle_sensor) * total_dist;
+  total_dist =  total_dist + 143/2;
+  if ( angle_sensor > 0 && angle_sensor < PI/2 ) {
+    float dist_x = cos(angle_sensor) * total_dist;
+    float dist_y = sin(angle_sensor) * total_dist;
     Map.updateMapFeature( 'O' , RomiPose.x + dist_x, RomiPose.y + dist_y );
   }
-  else if ( angle_sensor > 90 && angle_sensor < 180 ) {
-    float new_angle = 180 - angle_sensor;
+  else if ( angle_sensor > PI/2 && angle_sensor < PI ) {
+    float new_angle = PI - angle_sensor;
     float dist_x = cos(new_angle) * total_dist;
     float dist_y = sin(new_angle) * total_dist;
     Map.updateMapFeature( 'O' , RomiPose.x - dist_x, RomiPose.y + dist_y );
   }
-  else if (angle_sensor > 180 && angle_sensor < 270 ) {
-    float new_angle = angle_sensor - 180;
+  else if (angle_sensor > PI && angle_sensor < 3*PI/2 ) {
+    float new_angle = angle_sensor - PI;
     float dist_x = cos(new_angle) * total_dist;
     float dist_y = sin(new_angle) * total_dist;
     Map.updateMapFeature( 'O' , RomiPose.x - dist_x, RomiPose.y - dist_y );
   }
-  else if (angle_sensor > 270 && angle_sensor < 360 ) {
-    float new_angle = angle_sensor - 270;
+  else if (angle_sensor > 3*PI/2 && angle_sensor < 2*PI ) {
+    float new_angle = angle_sensor - 3*PI/2;
     float dist_x = sin(new_angle) * total_dist;
     float dist_y = cos(new_angle) * total_dist;
     Map.updateMapFeature( 'O' , RomiPose.x + dist_x, RomiPose.y - dist_y );
@@ -564,30 +564,31 @@ void obstacleUpdateLeft() {
 
 void obstacleUpdateRight() {
   float angle_romi = RomiPose.theta * (360 / TWO_PI);
-  float angle_sensor = angle_romi + 20;
-  if ( angle_sensor > 360 ) {
-    angle_sensor = angle_sensor - 360;
+  float angle_sensor = angle_romi + 0.0349;
+  if ( angle_sensor > 2*PI ) {
+    angle_sensor = angle_sensor - 2*PI;
   }
   float total_dist = IRSensor0.getDistanceInMM();
-  if ( angle_sensor > 0 && angle_sensor < 90 ) {
-    float dist_x = sin(angle_sensor) * total_dist;
-    float dist_y = cos(angle_sensor) * total_dist;
+  total_dist =  total_dist + 143/2;
+  if ( angle_sensor > 0 && angle_sensor < PI/2 ) {
+    float dist_x = cos(angle_sensor) * total_dist;
+    float dist_y = sin(angle_sensor) * total_dist;
     Map.updateMapFeature( 'O' , RomiPose.x + dist_x, RomiPose.y + dist_y );
   }
-  else if ( angle_sensor > 90 && angle_sensor < 180 ) {
-    float new_angle = 180 - angle_sensor;
+  else if ( angle_sensor > PI/2 && angle_sensor < PI ) {
+    float new_angle = PI - angle_sensor;
     float dist_x = cos(new_angle) * total_dist;
     float dist_y = sin(new_angle) * total_dist;
     Map.updateMapFeature( 'O' , RomiPose.x - dist_x, RomiPose.y + dist_y );
   }
-  else if (angle_sensor > 180 && angle_sensor < 270 ) {
-    float new_angle = angle_sensor - 180;
+  else if (angle_sensor > PI && angle_sensor < 3*PI/2 ) {
+    float new_angle = angle_sensor - PI;
     float dist_x = cos(new_angle) * total_dist;
     float dist_y = sin(new_angle) * total_dist;
     Map.updateMapFeature( 'O' , RomiPose.x - dist_x, RomiPose.y - dist_y );
   }
-  else if (angle_sensor > 270 && angle_sensor < 360 ) {
-    float new_angle = angle_sensor - 270;
+  else if (angle_sensor > 3*PI/2 && angle_sensor < 2*PI ) {
+    float new_angle = angle_sensor - 3*PI/2;
     float dist_x = sin(new_angle) * total_dist;
     float dist_y = cos(new_angle) * total_dist;
     Map.updateMapFeature( 'O' , RomiPose.x + dist_x, RomiPose.y - dist_y );
