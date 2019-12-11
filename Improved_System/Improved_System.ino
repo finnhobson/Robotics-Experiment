@@ -1,3 +1,4 @@
+
 /*****************************************************************************
     INCLUDES (global)
 *****************************************************************************/
@@ -41,7 +42,8 @@ u8 USB_SendSpace(u8 ep);
 
 // Behaviour parameters
 #define LINE_THRESHOLD        200.00
-#define STRAIGHT_FWD_SPEED    10.0
+#define STRAIGHT_PWM          40.0
+#define TURN_PWM              30.0
 #define LINE_FOLLOW_SPEED     8.0
 #define IR_DETECTD_THRESHOLD  100   // a close reading in mm (danger)
 #define IR_AVOIDED_THRESHOLD  140   // a distant reading in mm (safe)
@@ -56,9 +58,6 @@ u8 USB_SendSpace(u8 ep);
 #define H_PGAIN   3.0
 #define H_IGAIN   0.0001
 #define H_DGAIN   0.0
-
-#define turnPWM 30.0f
-#define drivePWM 40
 
 /*****************************************************************************
     CLASS INSTANCES (global)
@@ -184,16 +183,54 @@ void loop() {
   RomiPose.update( left_count, right_count );
 
 
+  // Check for obstacle every 50ms
+  if (millis() - update_t > 50) {
+    
+    // ***DOUBLE IR SENSORS:***
+    //if ( SERIAL_ACTIVE ) Serial.println( IRSensor0.getDistanceInMM() );
+    if ( IRSensor0.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
+
+      // Record that we found an obstruction on the LEFT
+      // Using LED just to see if it is working.
+      digitalWrite(DEBUG_LED, HIGH);
+
+      obstacleUpdateLeft();
+
+      changeState( STATE_TURN_90 );
+    }
+
+    if ( IRSensor1.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
+
+      // Record that we found an obstruction on the RIGHT
+      // Using LED just to see if it is working.
+      digitalWrite(DEBUG_LED, HIGH);
+
+      obstacleUpdateRight();
+
+      changeState( STATE_TURN_90 );
+
+    } else {
+      digitalWrite(DEBUG_LED, LOW);
+    }
+
+    // ***SINGLE IR SENSOR:***
+    /*//if ( SERIAL_ACTIVE ) Serial.println( IRSensor0.getDistanceInMM() );
+    if ( IRSensor0.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
+      float distanceIR = IRSensor0.getDistanceInMM();
+      digitalWrite(DEBUG_LED, HIGH);
+      Map.updateMapFeature( 'O' , (float)(RomiPose.x + distanceIR * sin(RomiPose.theta)), (float)(RomiPose.y + distanceIR * sin(RomiPose.theta)));
+      // Set next state to obstacle avoidance,
+      changeState( STATE_TURN_90 );
+    } else {
+      digitalWrite(DEBUG_LED, LOW);
+    }*/
+  }
+
+
   // Runs a behaviour every 50ms, skips otherwise.
   // Therefore, behaviours update 20 times a second
   if (  millis() - update_t > 2 ) {
     update_t = millis();
-
-    /*Serial.print( STATE );
-      Serial.print( ", " );
-      Serial.print( demand_angle );
-      Serial.print( ", " );
-      Serial.println( RomiPose.theta );*/
 
     // We check for a line, and if we find one
     // we immediately change state to line following.
@@ -202,29 +239,15 @@ void loop() {
       // Record that we found a line.
       Map.updateMapFeature( 'L' , RomiPose.x, RomiPose.y );
 
-      // Set next state to line following, caught
-      // by switch below
+      // Set next state to line following
       //changeState( STATE_FOLLOW_LINE );
-
     }
 
     else {
       Map.updateMapFeature( '.' , RomiPose.x, RomiPose.y );
     }
 
-//    //Check for obstacles
-//    //if ( SERIAL_ACTIVE ) Serial.println( IRSensor0.getDistanceInMM() );
-//    if ( IRSensor0.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
-//      float distanceIR = IRSensor0.getDistanceInMM();
-//      digitalWrite(DEBUG_LED, HIGH);
-//      Map.updateMapFeature( 'O' , (float)(RomiPose.x + distanceIR * sin(RomiPose.theta)), (float)(RomiPose.y + distanceIR * sin(RomiPose.theta)));
-//      // Set next state to obstacle avoidance,
-//      changeState( STATE_TURN_90 );
-//    } else {
-//      digitalWrite(DEBUG_LED, LOW);
-//    }
-
-
+    
     // Choose relevant helper functioned based on current state
     switch ( STATE ) {
 
@@ -278,7 +301,7 @@ void driveStraight() {
       changeState( STATE_TURN_90 );
     }
     if (RomiPose.y >= MAP_Y) {
-      changeState(STATE_DONE);
+      changeState( STATE_DONE );
     }
 
   }
@@ -294,10 +317,10 @@ void driveStraight() {
   }
   else turn_pwm = 0;
 
-  int left_demand = drivePWM - turn_pwm;
-  int right_demand = drivePWM + turn_pwm;
+  int left_demand = STRAIGHT_PWM - turn_pwm;
+  int right_demand = STRAIGHT_PWM + turn_pwm;
 
-  L_Motor.setPower(left_demand+1);
+  L_Motor.setPower(left_demand);
   R_Motor.setPower(right_demand);
 
 }
@@ -305,8 +328,8 @@ void driveStraight() {
 
 void nextGridLine() {
   if (RomiPose.y - last_loc < MAP_Y / MAP_RESOLUTION - 5) {
-    L_Motor.setPower((int)(drivePWM*0.6));
-    R_Motor.setPower((int)(drivePWM*0.6));
+    L_Motor.setPower((int)(STRAIGHT_PWM*0.6));
+    R_Motor.setPower((int)(STRAIGHT_PWM*0.6));
   }
   else {
     changeState(STATE_TURN_180);
@@ -321,7 +344,7 @@ void turnToDemand() {
   if (  diff < 0.01 ) {
 
     if ( STATE == STATE_TURN_90 ) {
-      changeState( STATE_NEXT_GRID_LINE);
+      changeState( STATE_NEXT_GRID_LINE );
     }
     if ( STATE == STATE_TURN_180  ) {
       changeState( STATE_DRIVE_STRAIGHT );
@@ -329,12 +352,12 @@ void turnToDemand() {
   }
 
   else if (left_turn_last) {
-    L_Motor.setPower(turnPWM+1);
-    R_Motor.setPower(-turnPWM);
+    L_Motor.setPower(TURN_PWM);
+    R_Motor.setPower(-TURN_PWM);
   }
   else {
-    L_Motor.setPower(-turnPWM-1);
-    R_Motor.setPower(turnPWM);
+    L_Motor.setPower(-TURN_PWM);
+    R_Motor.setPower(TURN_PWM);
   }
 }
 
@@ -473,54 +496,6 @@ void changeState( int which ) {
   H_PID.reset();
 
   return;
-}
-
-
-float pickAngle() {
-  float angle = 0.0f;
-
-  bool xBottom = RomiPose.x <= 30;
-  bool xTop = RomiPose.x >= (MAP_X - 30);
-  bool yBottom = RomiPose.y <= 30;
-  bool yTop = RomiPose.y >= (MAP_Y - 30);
-
-  if (xBottom && yBottom) {
-    angle = random(0, (PI / 2) * 100) / 100.0f;
-    Serial.println("BOTTOM LEFT");
-  }
-  else if (xBottom && yTop) {
-    angle = random((-PI / 2) * 100, 0) / 100.0f;
-    Serial.println("BOTTOM RIGHT");
-  }
-  else if (xTop && yBottom) {
-    angle = random((PI / 2) * 100, PI * 99) / 100.0f;
-    Serial.println("TOP LEFT");
-  }
-  else if (xTop && yTop) {
-    angle = random((-PI) * 99, (-PI / 2) * 100) / 100.0f;
-    Serial.println("TOP RIGHT");
-  }
-  else if (xBottom) {
-    angle = random((-PI / 2) * 100, (PI / 2) * 100) / 100.0f;
-    Serial.println("BOTTOM");
-  }
-  else if (yBottom) {
-    angle = random(0, PI * 99) / 100.0f;
-    Serial.println("LEFT");
-  }
-  else if (xTop) {
-    angle = random((PI / 2) * 100, (3 * (PI / 2)) * 100) / 100.0f;
-    Serial.println("TOP");
-  }
-  else if (yTop) {
-    angle = random((-PI) * 99, 0) / 100.0f;
-    Serial.println("RIGHT");
-  }
-
-  while ( angle < -PI ) angle += TWO_PI;
-  while ( angle > PI ) angle -= TWO_PI;
-  Serial.println(angle);
-  return angle;
 }
 
 
