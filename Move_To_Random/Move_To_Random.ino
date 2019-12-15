@@ -206,10 +206,6 @@ void loop() {
       last_line_x = RomiPose.x;
       last_line_y = RomiPose.y;
 
-      // Set next state to line following, caught
-      // by switch below
-      //changeState( STATE_FOLLOW_LINE );
-
     }
 
     else {
@@ -228,7 +224,7 @@ void loop() {
     //
     //      // Set next state to obstacle avoidance,
     //      // caught be switch below.
-    //      changeState( STATE_AVOID_OBJECT );
+    //      changeState( STATE_NEW_DEST );
     //    }
     //
     //    if ( IRSensor1.getDistanceInMM() < IR_DETECTD_THRESHOLD ) {
@@ -241,7 +237,7 @@ void loop() {
     //
     //      // Set next state to obstacle avoidance,
     //      // caught be switch below.
-    //      changeState( STATE_AVOID_OBJECT );
+    //      changeState( STATE_NEW_DEST );
     //
     //    } else {
     //      digitalWrite(DEBUG_LED, LOW);
